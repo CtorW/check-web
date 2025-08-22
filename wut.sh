@@ -77,6 +77,14 @@ else
     BIWhite="\033[1;97m"
 fi
 
+print_success() {
+    echo -e "\n${BIGreen}$1${Color_Off}"
+}
+
+print_error() {
+    echo -e "\n${BIRed}$1${Color_Off}"
+}
+
 select_option() {
     local options=("$@")
     local num_options=${#options[@]}
@@ -111,13 +119,13 @@ select_option() {
             $'\x1b') 
                 read -rsn2 -t 0.1 key
                 case "$key" in
-                    '[A') # Up arrow
+                    '[A')
                         ((selected--))
                         if [ $selected -lt 0 ]; then
                             selected=$((num_options - 1))
                         fi
                         ;;
-                    '[B') # Down arrow
+                    '[B')
                         ((selected++))
                         if [ $selected -ge $num_options ]; then
                             selected=0
@@ -125,7 +133,7 @@ select_option() {
                         ;;
                 esac
                 ;;
-            '') # Enter key
+            '')
                 echo
                 break
                 ;;
@@ -205,14 +213,37 @@ check_urls() {
         printf "%-50s" "$url"
         status_code=$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 5 --max-time 10 "$url")
 
-        if [ "$status_code" -eq 200 ]; then
-            echo -e "[${BGreen}UP${Color_Off}]"
+        if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 400 ]; then
+            echo -e "[${BGreen}UP: $status_code${Color_Off}]"
+        elif [ "$status_code" -ge 400 ] && [ "$status_code" -lt 600 ]; then
+            echo -e "[${BRed}DOWN: $status_code${Color_Off}]"
         else
-            echo -e "[${BRed}DOWN${Color_Off}]"
+            echo -e "[${BYellow}UNKNOWN${Color_Off}]"
         fi
     done < "$URLS_FILE"
     
     echo "-------------------------"
+    read -n 1 -s -r -p "Press any key to continue..."
+}
+
+list_urls() {
+    clear
+    echo -e "${BWhite}List of Saved URLs${Color_Off}"
+    echo "-----------------"
+
+    if [ ! -f "$URLS_FILE" ] || [ ! -s "$URLS_FILE" ]; then
+        echo -e "${BYellow}No URLs found in the list.${Color_Off}"
+        read -n 1 -s -r -p "Press any key to continue..."
+        return
+    fi
+
+    local count=1
+    while IFS= read -r url || [[ -n "$url" ]]; do
+        echo -e "${BYellow}${count}.${Color_Off} ${BIWhite}$url${Color_Off}"
+        ((count++))
+    done < "$URLS_FILE"
+
+    echo "-----------------"
     read -n 1 -s -r -p "Press any key to continue..."
 }
 
@@ -257,15 +288,16 @@ main() {
     
     while true; do
         clear
-        local options=("Add URL" "Check URLs" "Remove URL" "Exit")
+        local options=("Add URL" "Check URLs" "List URLs" "Remove URL" "Exit")
         select_option "${options[@]}"
         local choice=$?
 
         case "$choice" in
             0) add_url ;;
             1) check_urls ;;
-            2) remove_url ;;
-            3) echo -e "${BIGreen}Exiting script. Goodbye!${Color_Off}"; exit 0 ;;
+            2) list_urls ;;
+            3) remove_url ;;
+            4) echo -e "${BIGreen}Exiting script. Goodbye!${Color_Off}"; exit 0 ;;
             *) echo -e "${BRed}Invalid choice.${Color_Off}"; read -n 1 -s -r -p "Press any key to continue..." ;;
         esac
     done
